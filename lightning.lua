@@ -4,84 +4,46 @@ else
     return warn("Already loaded bypass")
 end
 
-local function randomString(length)
-    local charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-    local result = {}
-    for i = 1, length do
-        local rand = math.random(1, #charset)
-        result[i] = charset:sub(rand, rand)
-    end
-    return table.concat(result)
-end
+if not LPH_OBFUSCATED then
+    getfenv().LPH_NO_VIRTUALIZE = function(f) return f end
+  end
+  
 
-local function connectACInterceptor()
-    local randomVar = randomString(10)
-    
-    coroutine.wrap(function()
-        while wait(math.random(0.5, 1)) do  
-            game.DescendantAdded:Connect(function(Object)
-                if Object:IsA("LocalScript") and (Object.Name:sub(1, 5) == "Catch" or Object.Name:sub(1, 6) == "BlockP") then
-                    warn("Detected AC Script:", Object:GetFullName())
-                    Object:Destroy() 
-                end
-            end)
-        end
-    end)()
-end
+  local ReplicatedStorage = game:GetService("ReplicatedStorage")
+  
 
-connectACInterceptor()
-
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CharacterSoundEvent")
-
-local function obscureHandshake(T, v1, v2, v3)
-    if type(T) ~= "table" or #T < 11 then
-        return T
-    end
-
-    if type(v1) ~= "number" or type(v2) ~= "number" or type(v3) ~= "number" then
-        return T
-    end
-
-    local adjustment = math.random(5, 15) / 10
-    if v1 ~= v2 and v2 ~= v3 then
-        local sqrtVal = math.sqrt(v3 - 500)
-        if sqrtVal and sqrtVal > 0 then
-            local index = math.floor(((T[11] / 90) ^ (1 / 3) - 112) / -9 * adjustment) + 1
-            if index > 0 and index <= #T then
-                T[index] = T[math.floor(sqrtVal)] or T[index]
+  local Handshake = ReplicatedStorage.Remotes.CharacterSoundEvent
+  local Hooks = {}
+  local HandshakeInts = {}
+  
+  LPH_NO_VIRTUALIZE(function()
+    for i, v in getgc() do
+        if typeof(v) == "function" and islclosure(v) then
+            if (#getprotos(v) == 1) and table.find(getconstants(getproto(v, 1)), 4000001) then
+                hookfunction(v, function() end)
             end
         end
     end
-
-    return T
-end
-
-
-local Handshake = setmetatable({
-    {},  
-    math.random(1000000, 100000000),
-    math.random(1000000, 100000000),
-    math.random(1000000, 100000000),
-    newproxy(true)  
-}, {__call = obscureHandshake})
-
-Remote.OnClientEvent:Connect(function(Method, _, NewArgs)
-    if Method == "💱AC" and NewArgs then
-        for i = 1, #NewArgs do
-            Handshake[i + 1] = NewArgs[i] + math.random(-15, 15)
+  end)()
+  
+  Hooks.__namecall = hookmetamethod(game, "__namecall", LPH_NO_VIRTUALIZE(function(self, ...)
+    local Method = getnamecallmethod()
+    local Args = {...}
+  
+    if not checkcaller() and (self == Handshake) and (Method == "fireServer") and (string.find(Args[1], "AC")) then
+        if (#HandshakeInts == 0) then
+            HandshakeInts = {table.unpack(Args[2], 2, 18)}
+        else
+            for i, v in HandshakeInts do
+                Args[2][i + 1] = v
+            end
         end
     end
-end)
-
-task.spawn(function()
-    while task.wait(math.random(0.5, 1)) do  
-        Remote:FireServer("💱AC", Handshake(887, 782, 780), nil)
-    end
-end)
-
---pull
+  
+    return Hooks.__namecall(self, ...)
+  end))
+  
+  task.wait(1)
 
 local blockreachon = false
 local customblockreach = 5
